@@ -9,18 +9,19 @@
 
 namespace redis {
 
-CommandHandler::CommandHandler(std::shared_ptr<Config> config,
-                               std::shared_ptr<Storage> storage)
+CommandHandler::CommandHandler(const std::shared_ptr<Config>& config,
+                               const std::shared_ptr<Storage>& storage)
     : config_(config), storage_(storage) {}
 
 std::string CommandHandler::handleCommand(
-    const std::vector<std::string>& command) {
+    const std::vector<std::string>& command) const
+{
   if (command.empty()) {
     return RESPParser::encodeError("ERR empty command");
   }
 
   std::string cmd = command[0];
-  std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::toupper);
+  std::ranges::transform(cmd, cmd.begin(), ::toupper);
 
   if (cmd == "PING") {
     return handlePing();
@@ -65,7 +66,8 @@ std::string CommandHandler::handleEcho(const std::vector<std::string>& args) {
   return RESPParser::encodeBulkString(args[0]);
 }
 
-std::string CommandHandler::handleSet(const std::vector<std::string>& args) {
+std::string CommandHandler::handleSet(const std::vector<std::string>& args) const
+{
   if (args.size() < 2) {
     return RESPParser::encodeError(
         "ERR wrong number of arguments for 'set' command");
@@ -76,14 +78,14 @@ std::string CommandHandler::handleSet(const std::vector<std::string>& args) {
 
   if (args.size() >= 4) {
     std::string option = args[2];
-    std::transform(option.begin(), option.end(), option.begin(), ::toupper);
+    std::ranges::transform(option, option.begin(), ::toupper);
 
     if (option == "PX") {
       try {
-        int expiryMs = std::stoi(args[3]);
+        const int expiryMs = std::stoi(args[3]);
         storage_->setWithExpiry(key, value, expiryMs);
         return RESPParser::encodeSimpleString("OK");
-      } catch (const std::exception& e) {
+      } catch ([[maybe_unused]] const std::exception& e) {
         return RESPParser::encodeError(
             "ERR invalid expire time in 'set' command");
       }
@@ -94,32 +96,33 @@ std::string CommandHandler::handleSet(const std::vector<std::string>& args) {
   return RESPParser::encodeSimpleString("OK");
 }
 
-std::string CommandHandler::handleGet(const std::vector<std::string>& args) {
+std::string CommandHandler::handleGet(const std::vector<std::string>& args) const
+{
   if (args.empty()) {
     return RESPParser::encodeError(
         "ERR wrong number of arguments for 'get' command");
   }
 
-  auto value = storage_->get(args[0]);
-  if (value.has_value()) {
+  if (const auto value = storage_->get(args[0]); value.has_value()) {
     return RESPParser::encodeBulkString(value.value());
   } else {
     return RESPParser::encodeNull();
   }
 }
 
-std::string CommandHandler::handleConfig(const std::vector<std::string>& args) {
+std::string CommandHandler::handleConfig(const std::vector<std::string>& args) const
+{
   if (args.size() < 2) {
     return RESPParser::encodeError(
         "ERR wrong number of arguments for 'config' command");
   }
 
   std::string subcmd = args[0];
-  std::transform(subcmd.begin(), subcmd.end(), subcmd.begin(), ::toupper);
+  std::ranges::transform(subcmd, subcmd.begin(), ::toupper);
 
   if (subcmd == "GET") {
     std::string param = args[1];
-    std::transform(param.begin(), param.end(), param.begin(), ::tolower);
+    std::ranges::transform(param, param.begin(), ::tolower);
 
     std::string value;
     if (param == "dir") {
@@ -136,30 +139,32 @@ std::string CommandHandler::handleConfig(const std::vector<std::string>& args) {
   }
 }
 
-std::string CommandHandler::handleKeys(const std::vector<std::string>& args) {
+std::string CommandHandler::handleKeys(const std::vector<std::string>& args) const
+{
   if (args.empty()) {
     return RESPParser::encodeError(
         "ERR wrong number of arguments for 'keys' command");
   }
 
-  // For now, only support "*" pattern
+  // For now, only support the "*" pattern
   if (args[0] != "*") {
     return RESPParser::encodeError("ERR pattern not supported");
   }
 
-  auto keys = storage_->getAllKeys();
+  const auto keys = storage_->getAllKeys();
   return RESPParser::encodeArray(keys);
 }
 
-std::string CommandHandler::handleInfo(const std::vector<std::string>& args) {
+std::string CommandHandler::handleInfo(const std::vector<std::string>& args) const
+{
   // Check if the command has arguments and if it's "replication"
   if (!args.empty()) {
     std::string section = args[0];
-    std::transform(section.begin(), section.end(), section.begin(), ::tolower);
+    std::ranges::transform(section, section.begin(), ::tolower);
 
     if (section == "replication") {
       // Return replication info as a bulk string
-      std::string role = config_->isReplica() ? "slave" : "master";
+      const std::string role = config_->isReplica() ? "slave" : "master";
       std::string info = "role:" + role + "\r\n";
 
       // Add master_replid and master_repl_offset for master nodes
@@ -178,7 +183,7 @@ std::string CommandHandler::handleInfo(const std::vector<std::string>& args) {
 
 std::string CommandHandler::handleReplconf(
     const std::vector<std::string>& args) {
-  // For the purposes of this challenge, we ignore the arguments
+  // For this challenge, we ignore the arguments
   // and just respond with +OK\r\n
   return RESPParser::encodeSimpleString("OK");
 }
@@ -192,9 +197,9 @@ std::string CommandHandler::handlePsync(const std::vector<std::string>& args) {
 
   // For full resynchronization, we respond with:
   // +FULLRESYNC <REPL_ID> 0\r\n
-  std::string replId = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
-  std::string offset = "0";
-  std::string response = "FULLRESYNC " + replId + " " + offset;
+  const std::string replId = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
+  const std::string offset = "0";
+  const std::string response = "FULLRESYNC " + replId + " " + offset;
 
   return RESPParser::encodeSimpleString(response);
 }

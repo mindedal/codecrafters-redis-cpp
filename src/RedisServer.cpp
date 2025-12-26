@@ -1,12 +1,5 @@
 #include "redis/RedisServer.h"
 
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <unistd.h>
-
 #include <algorithm>
 #include <cstring>
 #include <iostream>
@@ -17,37 +10,53 @@
 #include "redis/RESPParser.h"
 #include "redis/Storage.h"
 
+#ifdef _WIN32
+#define CLOSE_SOCKET(s) closesocket(s)
+#else
+#define CLOSE_SOCKET(s) close(s)
+#endif
+
 namespace redis {
 
-RedisServer::RedisServer(std::shared_ptr<Config> config)
+RedisServer::RedisServer(const std::shared_ptr<Config>& config)
     : config_(config),
       storage_(std::make_shared<Storage>()),
       commandHandler_(std::make_shared<CommandHandler>(config, storage_)),
-      serverFd_(-1),
-      masterFd_(-1) {}
+      serverFd_(INVALID_SOCKET_VAL),
+      masterFd_(INVALID_SOCKET_VAL) {
+#ifdef _WIN32
+  WSADATA wsaData;
+  if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+    std::cerr << "WSAStartup failed\n";
+  }
+#endif
+}
 
 RedisServer::~RedisServer() {
-  for (int fd : clientFds_) {
-    close(fd);
+  for (const auto fd : clientFds_) {
+    CLOSE_SOCKET(fd);
   }
-  if (serverFd_ != -1) {
-    close(serverFd_);
+  if (serverFd_ != INVALID_SOCKET_VAL) {
+    CLOSE_SOCKET(serverFd_);
   }
-  if (masterFd_ != -1) {
-    close(masterFd_);
+  if (masterFd_ != INVALID_SOCKET_VAL) {
+    CLOSE_SOCKET(masterFd_);
   }
+#ifdef _WIN32
+  WSACleanup();
+#endif
 }
 
 bool RedisServer::createServerSocket() {
   serverFd_ = socket(AF_INET, SOCK_STREAM, 0);
-  if (serverFd_ < 0) {
+  if (serverFd_ == INVALID_SOCKET_VAL) {
     std::cerr << "Failed to create server socket\n";
     return false;
   }
 
-  int reuse = 1;
-  if (setsockopt(serverFd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) <
-      0) {
+  constexpr int reuse = 1;
+  if (setsockopt(serverFd_, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&reuse),
+                 sizeof(reuse)) < 0) {
     std::cerr << "setsockopt failed\n";
     return false;
   }
@@ -57,14 +66,13 @@ bool RedisServer::createServerSocket() {
   server_addr.sin_addr.s_addr = INADDR_ANY;
   server_addr.sin_port = htons(config_->getPort());
 
-  if (bind(serverFd_, (struct sockaddr *)&server_addr, sizeof(server_addr)) !=
+  if (bind(serverFd_, reinterpret_cast<struct sockaddr*>(&server_addr), sizeof(server_addr)) !=
       0) {
     std::cerr << "Failed to bind to port " << config_->getPort() << std::endl;
     return false;
   }
 
-  int connection_backlog = 5;
-  if (listen(serverFd_, connection_backlog) != 0) {
+  if (constexpr int connection_backlog = 5; listen(serverFd_, connection_backlog) != 0) {
     std::cerr << "listen failed" << std::endl;
     return false;
   }
@@ -76,7 +84,7 @@ bool RedisServer::createServerSocket() {
 
 bool RedisServer::connectToMaster() {
   masterFd_ = socket(AF_INET, SOCK_STREAM, 0);
-  if (masterFd_ < 0) {
+  if (masterFd_ == INVALID_SOCKET_VAL) {
     std::cerr << "Failed to create socket for master connection\n";
     return false;
   }
@@ -85,27 +93,33 @@ bool RedisServer::connectToMaster() {
   master_addr.sin_family = AF_INET;
   master_addr.sin_port = htons(config_->getMasterPort());
 
-  // Try to parse as IP address first
+  // Try to parse as an IP address first
+#ifdef _WIN32
+  if (inet_addr(config_->getMasterHost().c_str()) != INADDR_NONE) {
+    master_addr.sin_addr.s_addr = inet_addr(config_->getMasterHost().c_str());
+  } else {
+#else
   if (inet_pton(AF_INET, config_->getMasterHost().c_str(),
                 &master_addr.sin_addr) <= 0) {
-    // If not an IP, try to resolve hostname
-    struct hostent *host = gethostbyname(config_->getMasterHost().c_str());
+#endif
+    // If not an IP, try to resolve the hostname
+    const struct hostent *host = gethostbyname(config_->getMasterHost().c_str());
     if (host == nullptr) {
       std::cerr << "Failed to resolve master hostname: "
                 << config_->getMasterHost() << "\n";
-      close(masterFd_);
-      masterFd_ = -1;
+      CLOSE_SOCKET(masterFd_);
+      masterFd_ = INVALID_SOCKET_VAL;
       return false;
     }
     memcpy(&master_addr.sin_addr, host->h_addr, host->h_length);
   }
 
-  if (connect(masterFd_, (struct sockaddr *)&master_addr, sizeof(master_addr)) <
+  if (connect(masterFd_, reinterpret_cast<struct sockaddr*>(&master_addr), sizeof(master_addr)) <
       0) {
     std::cerr << "Failed to connect to master at " << config_->getMasterHost()
               << ":" << config_->getMasterPort() << "\n";
-    close(masterFd_);
-    masterFd_ = -1;
+    CLOSE_SOCKET(masterFd_);
+    masterFd_ = INVALID_SOCKET_VAL;
     return false;
   }
 
@@ -113,11 +127,11 @@ bool RedisServer::connectToMaster() {
             << config_->getMasterPort() << "\n";
 
   // Send PING command as part of the handshake
-  std::string pingCommand = RESPParser::encodeArray({"PING"});
+  const std::string pingCommand = RESPParser::encodeArray({"PING"});
   if (send(masterFd_, pingCommand.c_str(), pingCommand.length(), 0) < 0) {
     std::cerr << "Failed to send PING to master\n";
-    close(masterFd_);
-    masterFd_ = -1;
+    CLOSE_SOCKET(masterFd_);
+    masterFd_ = INVALID_SOCKET_VAL;
     return false;
   }
 
@@ -126,29 +140,29 @@ bool RedisServer::connectToMaster() {
   int bytesRead = recv(masterFd_, buffer, sizeof(buffer), 0);
   if (bytesRead <= 0) {
     std::cerr << "Failed to receive PONG from master\n";
-    close(masterFd_);
-    masterFd_ = -1;
+    CLOSE_SOCKET(masterFd_);
+    masterFd_ = INVALID_SOCKET_VAL;
     return false;
   }
 
-  std::string pongResponse(buffer, bytesRead);
+  const std::string pongResponse(buffer, bytesRead);
   std::string parsedResponse = RESPParser::parseSimpleString(pongResponse);
   if (parsedResponse != "PONG") {
     std::cerr << "Unexpected response to PING: " << parsedResponse << "\n";
-    close(masterFd_);
-    masterFd_ = -1;
+    CLOSE_SOCKET(masterFd_);
+    masterFd_ = INVALID_SOCKET_VAL;
     return false;
   }
 
   std::cout << "Received PONG from master\n";
 
   // Send REPLCONF listening-port
-  std::string replconfPort = RESPParser::encodeArray(
+  const std::string replconfPort = RESPParser::encodeArray(
       {"REPLCONF", "listening-port", std::to_string(config_->getPort())});
   if (send(masterFd_, replconfPort.c_str(), replconfPort.length(), 0) < 0) {
     std::cerr << "Failed to send REPLCONF listening-port to master\n";
-    close(masterFd_);
-    masterFd_ = -1;
+    CLOSE_SOCKET(masterFd_);
+    masterFd_ = INVALID_SOCKET_VAL;
     return false;
   }
 
@@ -156,30 +170,30 @@ bool RedisServer::connectToMaster() {
   bytesRead = recv(masterFd_, buffer, sizeof(buffer), 0);
   if (bytesRead <= 0) {
     std::cerr << "Failed to receive response to REPLCONF listening-port\n";
-    close(masterFd_);
-    masterFd_ = -1;
+    CLOSE_SOCKET(masterFd_);
+    masterFd_ = INVALID_SOCKET_VAL;
     return false;
   }
 
-  std::string okResponse1(buffer, bytesRead);
+  const std::string okResponse1(buffer, bytesRead);
   parsedResponse = RESPParser::parseSimpleString(okResponse1);
   if (parsedResponse != "OK") {
     std::cerr << "Unexpected response to REPLCONF listening-port: "
               << parsedResponse << "\n";
-    close(masterFd_);
-    masterFd_ = -1;
+    CLOSE_SOCKET(masterFd_);
+    masterFd_ = INVALID_SOCKET_VAL;
     return false;
   }
 
   std::cout << "Sent REPLCONF listening-port\n";
 
   // Send REPLCONF capa psync2
-  std::string replconfCapa =
+  const std::string replconfCapa =
       RESPParser::encodeArray({"REPLCONF", "capa", "psync2"});
   if (send(masterFd_, replconfCapa.c_str(), replconfCapa.length(), 0) < 0) {
     std::cerr << "Failed to send REPLCONF capa to master\n";
-    close(masterFd_);
-    masterFd_ = -1;
+    CLOSE_SOCKET(masterFd_);
+    masterFd_ = INVALID_SOCKET_VAL;
     return false;
   }
 
@@ -187,29 +201,29 @@ bool RedisServer::connectToMaster() {
   bytesRead = recv(masterFd_, buffer, sizeof(buffer), 0);
   if (bytesRead <= 0) {
     std::cerr << "Failed to receive response to REPLCONF capa\n";
-    close(masterFd_);
-    masterFd_ = -1;
+    CLOSE_SOCKET(masterFd_);
+    masterFd_ = INVALID_SOCKET_VAL;
     return false;
   }
 
-  std::string okResponse2(buffer, bytesRead);
+  const std::string okResponse2(buffer, bytesRead);
   parsedResponse = RESPParser::parseSimpleString(okResponse2);
   if (parsedResponse != "OK") {
     std::cerr << "Unexpected response to REPLCONF capa: " << parsedResponse
               << "\n";
-    close(masterFd_);
-    masterFd_ = -1;
+    CLOSE_SOCKET(masterFd_);
+    masterFd_ = INVALID_SOCKET_VAL;
     return false;
   }
 
   std::cout << "Sent REPLCONF capa psync2\n";
 
   // Send PSYNC ? -1
-  std::string psyncCommand = RESPParser::encodeArray({"PSYNC", "?", "-1"});
+  const std::string psyncCommand = RESPParser::encodeArray({"PSYNC", "?", "-1"});
   if (send(masterFd_, psyncCommand.c_str(), psyncCommand.length(), 0) < 0) {
     std::cerr << "Failed to send PSYNC to master\n";
-    close(masterFd_);
-    masterFd_ = -1;
+    CLOSE_SOCKET(masterFd_);
+    masterFd_ = INVALID_SOCKET_VAL;
     return false;
   }
 
@@ -217,8 +231,8 @@ bool RedisServer::connectToMaster() {
   bytesRead = recv(masterFd_, buffer, sizeof(buffer), 0);
   if (bytesRead <= 0) {
     std::cerr << "Failed to receive response to PSYNC\n";
-    close(masterFd_);
-    masterFd_ = -1;
+    CLOSE_SOCKET(masterFd_);
+    masterFd_ = INVALID_SOCKET_VAL;
     return false;
   }
 
@@ -234,8 +248,6 @@ void RedisServer::run() {
   if (!createServerSocket()) {
     return;
   }
-
-  loadRDBFile();
 
   // If we're a replica, connect to master
   if (config_->isReplica()) {
@@ -258,8 +270,7 @@ void RedisServer::run() {
       maxFd = std::max(maxFd, clientFd);
     }
 
-    int activity = select(maxFd + 1, &readFds, nullptr, nullptr, nullptr);
-    if (activity < 0) {
+    if (const int activity = select(maxFd + 1, &readFds, nullptr, nullptr, nullptr); activity < 0) {
       std::cerr << "select error" << std::endl;
       break;
     }
@@ -268,8 +279,7 @@ void RedisServer::run() {
       handleNewConnection();
     }
 
-    auto clientFdsSnapshot = clientFds_;
-    for (int clientFd : clientFdsSnapshot) {
+    for (auto clientFdsSnapshot = clientFds_; const int clientFd : clientFdsSnapshot) {
       if (FD_ISSET(clientFd, &readFds)) {
         handleClientData(clientFd);
       }
@@ -279,11 +289,15 @@ void RedisServer::run() {
 
 void RedisServer::handleNewConnection() {
   struct sockaddr_in client_addr;
+#ifdef _WIN32
+  int client_addr_len = sizeof(client_addr);
+#else
   socklen_t client_addr_len = sizeof(client_addr);
-  int clientFd =
-      accept(serverFd_, (struct sockaddr *)&client_addr, &client_addr_len);
+#endif
+  const socket_t clientFd =
+      accept(serverFd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_addr_len);
 
-  if (clientFd < 0) {
+  if (clientFd == INVALID_SOCKET_VAL) {
     std::cerr << "Failed to accept client connection" << std::endl;
     return;
   }
@@ -292,35 +306,34 @@ void RedisServer::handleNewConnection() {
   std::cout << "New client connected (fd: " << clientFd << ")" << std::endl;
 }
 
-void RedisServer::handleClientData(int clientFd) {
+void RedisServer::handleClientData(const socket_t clientFd) {
   char buffer[1024];
-  int bytesRead = recv(clientFd, buffer, sizeof(buffer), 0);
+  const int bytesRead = recv(clientFd, buffer, sizeof(buffer), 0);
 
   if (bytesRead <= 0) {
     closeClient(clientFd);
     return;
   }
 
-  std::string data(buffer, bytesRead);
-  auto command = RESPParser::parseArray(data);
+  const std::string data(buffer, bytesRead);
 
-  if (!command.empty()) {
-    std::string response = commandHandler_->handleCommand(command);
+  if (const auto command = RESPParser::parseArray(data); !command.empty()) {
+    const std::string response = commandHandler_->handleCommand(command);
     send(clientFd, response.c_str(), response.length(), 0);
   }
 }
 
-void RedisServer::closeClient(int clientFd) {
-  close(clientFd);
+void RedisServer::closeClient(const socket_t clientFd) {
+  CLOSE_SOCKET(clientFd);
   clientFds_.erase(clientFd);
   std::cout << "Client disconnected (fd: " << clientFd << ")" << std::endl;
 }
 
-bool RedisServer::loadRDBFile() {
-  std::string rdbPath = config_->getDir() + "/" + config_->getDbFilename();
+bool RedisServer::loadRDBFile() const
+{
+  const std::string rdbPath = config_->getDir() + "/" + config_->getDbFilename();
 
-  RDBParser parser;
-  if (!parser.parseFile(rdbPath, *storage_)) {
+  if (RDBParser parser; !parser.parseFile(rdbPath, *storage_)) {
     std::cerr << "Failed to parse RDB file: " << rdbPath << std::endl;
     return false;
   }

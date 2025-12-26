@@ -13,21 +13,21 @@ std::vector<std::string> RESPParser::parseArray(const std::string& data) {
     return result;
   }
 
-  if (!line.empty() && line.back() == '\r') {
+  if (line.back() == '\r') {
     line.pop_back();
   }
 
-  int numElements = std::stoi(line.substr(1));
+  const int numElements = std::stoi(line.substr(1));
 
   for (int i = 0; i < numElements; i++) {
     if (!std::getline(iss, line)) break;
     if (line.empty() || line[0] != '$') break;
 
-    if (!line.empty() && line.back() == '\r') {
+    if (line.back() == '\r') {
       line.pop_back();
     }
 
-    int length = std::stoi(line.substr(1));
+    const int length = std::stoi(line.substr(1));
 
     if (!std::getline(iss, line)) break;
 
@@ -50,7 +50,7 @@ std::string RESPParser::parseSimpleString(const std::string& data) {
     return "";
   }
 
-  size_t end = data.find("\r\n");
+  const size_t end = data.find("\r\n");
   if (end == std::string::npos) {
     return "";
   }

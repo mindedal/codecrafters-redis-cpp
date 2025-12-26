@@ -1,7 +1,6 @@
 #include "redis/RDBParser.h"
 
 #include <chrono>
-#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -52,18 +51,15 @@ bool RDBParser::skipMetadata() {
       // Metadata subsection
       readString();  // metadata name
       readString();  // metadata value
-    } else if (type == 0xFE) {
-      // Database subsection starts
+    } else if (type == 0xFE || type == 0xFF) {
+      // Database subsection starts or End of a file
       file_.seekg(-1, std::ios::cur);  // Go back one byte
       return true;
-    } else if (type == 0xFF) {
-      // End of file
-      file_.seekg(-1, std::ios::cur);
-      return true;
     } else {
-      // Unknown type in metadata section
-      file_.seekg(-1, std::ios::cur);
-      return true;
+      // Unknown type in the metadata section
+      std::cerr << "Unexpected byte in metadata section: " << static_cast<int>(type)
+                << std::endl;
+      return false;
     }
   }
 
@@ -72,15 +68,9 @@ bool RDBParser::skipMetadata() {
 
 bool RDBParser::readDatabase(Storage& storage) {
   while (!isEOF()) {
-    uint8_t type = readByte();
-
-    if (type == 0xFE) {
-      // Database subsection
-      uint64_t dbIndex = readLength();
-
+    if (const uint8_t type = readByte(); type == 0xFE) {
       // Check for hash table size info
-      uint8_t nextByte = readByte();
-      if (nextByte == 0xFB) {
+      if (const uint8_t nextByte = readByte(); nextByte == 0xFB) {
         readLength();  // hash table size
         readLength();  // expire hash table size
       } else {
@@ -114,7 +104,7 @@ bool RDBParser::readDatabase(Storage& storage) {
 
         // For now, we only support string values (type 0)
         if (marker != 0x00) {
-          std::cerr << "Unsupported value type: " << (int)marker << std::endl;
+          std::cerr << "Unsupported value type: " << static_cast<int>(marker) << std::endl;
           return false;
         }
 
@@ -124,12 +114,12 @@ bool RDBParser::readDatabase(Storage& storage) {
         if (hasExpiry) {
           // Convert Unix timestamp to duration from now
           auto now = std::chrono::system_clock::now();
-          auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+          const auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
                            now.time_since_epoch())
                            .count();
 
           if (expiryTime > static_cast<uint64_t>(nowMs)) {
-            int64_t durationMs = expiryTime - nowMs;
+            const int64_t durationMs = expiryTime - nowMs;
             storage.setWithExpiry(key, value, durationMs);
           }
           // If expired, don't add to storage
@@ -142,7 +132,7 @@ bool RDBParser::readDatabase(Storage& storage) {
       skipBytes(8);  // Skip checksum
       return true;
     } else {
-      std::cerr << "Unexpected byte in database section: " << (int)type
+      std::cerr << "Unexpected byte in database section: " << static_cast<int>(type)
                 << std::endl;
       return false;
     }
