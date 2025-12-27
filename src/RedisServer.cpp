@@ -18,12 +18,10 @@
 
 namespace redis {
 
-RedisServer::RedisServer(const std::shared_ptr<Config>& config)
-    : config_(config),
-      storage_(std::make_shared<Storage>()),
+RedisServer::RedisServer(const std::shared_ptr<Config> &config)
+    : config_(config), storage_(std::make_shared<Storage>()),
       commandHandler_(std::make_shared<CommandHandler>(config, storage_)),
-      serverFd_(INVALID_SOCKET_VAL),
-      masterFd_(INVALID_SOCKET_VAL) {
+      serverFd_(INVALID_SOCKET_VAL), masterFd_(INVALID_SOCKET_VAL) {
 #ifdef _WIN32
   WSADATA wsaData;
   if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
@@ -56,17 +54,17 @@ bool RedisServer::createServerSocket() {
 
   constexpr int reuse = 1;
   if (setsockopt(serverFd_, SOL_SOCKET, SO_REUSEADDR,
-                 reinterpret_cast<const char*>(&reuse), sizeof(reuse)) < 0) {
+                 reinterpret_cast<const char *>(&reuse), sizeof(reuse)) < 0) {
     std::cerr << "setsockopt failed\n";
     return false;
   }
 
-  struct sockaddr_in server_addr;
+  struct sockaddr_in server_addr{};
   server_addr.sin_family = AF_INET;
   server_addr.sin_addr.s_addr = INADDR_ANY;
   server_addr.sin_port = htons(config_->getPort());
 
-  if (bind(serverFd_, reinterpret_cast<struct sockaddr*>(&server_addr),
+  if (bind(serverFd_, reinterpret_cast<struct sockaddr *>(&server_addr),
            sizeof(server_addr)) != 0) {
     std::cerr << "Failed to bind to port " << config_->getPort() << std::endl;
     return false;
@@ -105,7 +103,7 @@ bool RedisServer::connectToMaster() {
       hints.ai_family = AF_INET;
       hints.ai_socktype = SOCK_STREAM;
 
-      addrinfo* result = nullptr;
+      addrinfo *result = nullptr;
       if (getaddrinfo(config_->getMasterHost().c_str(), nullptr, &hints,
                       &result) != 0 ||
           result == nullptr) {
@@ -116,7 +114,7 @@ bool RedisServer::connectToMaster() {
         return false;
       }
 
-      auto* ipv4 = reinterpret_cast<sockaddr_in*>(result->ai_addr);
+      auto *ipv4 = reinterpret_cast<sockaddr_in *>(result->ai_addr);
       master_addr.sin_addr = ipv4->sin_addr;
       freeaddrinfo(result);
     }
@@ -125,7 +123,7 @@ bool RedisServer::connectToMaster() {
 #else
   if (inet_pton(AF_INET, config_->getMasterHost().c_str(),
                 &master_addr.sin_addr) <= 0) {
-    const struct hostent* host =
+    const struct hostent *host =
         gethostbyname(config_->getMasterHost().c_str());
     if (host == nullptr) {
       std::cerr << "Failed to resolve master hostname: "
@@ -138,7 +136,7 @@ bool RedisServer::connectToMaster() {
   }
 #endif
 
-  if (connect(masterFd_, reinterpret_cast<struct sockaddr*>(&master_addr),
+  if (connect(masterFd_, reinterpret_cast<struct sockaddr *>(&master_addr),
               sizeof(master_addr)) < 0) {
     std::cerr << "Failed to connect to master at " << config_->getMasterHost()
               << ":" << config_->getMasterPort() << "\n";
@@ -322,14 +320,14 @@ void RedisServer::run() {
 }
 
 void RedisServer::handleNewConnection() {
-  struct sockaddr_in client_addr;
+  struct sockaddr_in client_addr{};
 #ifdef _WIN32
   int client_addr_len = sizeof(client_addr);
 #else
   socklen_t client_addr_len = sizeof(client_addr);
 #endif
   const socket_t clientFd =
-      accept(serverFd_, reinterpret_cast<struct sockaddr*>(&client_addr),
+      accept(serverFd_, reinterpret_cast<struct sockaddr *>(&client_addr),
              &client_addr_len);
 
   if (clientFd == INVALID_SOCKET_VAL) {
@@ -376,4 +374,4 @@ bool RedisServer::loadRDBFile() const {
   return true;
 }
 
-}  // namespace redis
+} // namespace redis

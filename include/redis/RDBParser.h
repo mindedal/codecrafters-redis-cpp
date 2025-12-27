@@ -10,17 +10,17 @@ namespace redis {
 class Storage;
 
 class RDBParser {
- public:
+public:
   RDBParser() = default;
 
-  bool parseFile(const std::string& filepath, Storage& storage);
+  bool parseFile(const std::string &filepath, Storage &storage);
 
- private:
+private:
   std::ifstream file_;
 
   bool readHeader();
   bool skipMetadata();
-  bool readDatabase(Storage& storage);
+  bool readDatabase(Storage &storage);
 
   uint8_t readByte();
   uint32_t readUInt32LE();
@@ -33,6 +33,6 @@ class RDBParser {
   bool isEOF();
 };
 
-}  // namespace redis
+} // namespace redis
 
-#endif  // REDIS_RDB_PARSER_H
+#endif // REDIS_RDB_PARSER_H

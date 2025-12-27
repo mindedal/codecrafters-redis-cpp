@@ -6,13 +6,10 @@
 namespace redis {
 
 Config::Config()
-    : dir_("."),
-      dbfilename_("dump.rdb"),
-      port_(6379),
-      masterHost_(""),
+    : dir_("."), dbfilename_("dump.rdb"), port_(6379), masterHost_(""),
       masterPort_(0) {}
 
-void Config::parseArgs(int argc, char** argv) {
+void Config::parseArgs(int argc, char **argv) {
   for (int i = 1; i < argc; i++) {
     if (std::strcmp(argv[i], "--dir") == 0 && i + 1 < argc) {
       dir_ = argv[++i];
@@ -29,4 +26,4 @@ void Config::parseArgs(int argc, char** argv) {
   }
 }
 
-}  // namespace redis
+} // namespace redis

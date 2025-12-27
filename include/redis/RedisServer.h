@@ -37,13 +37,13 @@ class CommandHandler;
 class RDBParser;
 
 class RedisServer {
- public:
-  explicit RedisServer(const std::shared_ptr<Config>& config);
+public:
+  explicit RedisServer(const std::shared_ptr<Config> &config);
   ~RedisServer();
 
   void run();
 
- private:
+private:
   bool loadRDBFile() const;
   std::shared_ptr<Config> config_;
   std::shared_ptr<Storage> storage_;
@@ -60,6 +60,6 @@ class RedisServer {
   void closeClient(socket_t clientFd);
 };
 
-}  // namespace redis
+} // namespace redis
 
-#endif  // REDIS_SERVER_H
+#endif // REDIS_SERVER_H

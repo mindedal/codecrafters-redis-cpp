@@ -2,12 +2,12 @@
 
 namespace redis {
 
-void Storage::set(const std::string& key, const std::string& value) {
+void Storage::set(const std::string &key, const std::string &value) {
   std::lock_guard<std::mutex> lock(mutex_);
   data_[key] = ValueWithExpiry(value);
 }
 
-void Storage::setWithExpiry(const std::string& key, const std::string& value,
+void Storage::setWithExpiry(const std::string &key, const std::string &value,
                             const int64_t expiryMs) {
   std::lock_guard<std::mutex> lock(mutex_);
   const auto expiryTime =
@@ -15,7 +15,7 @@ void Storage::setWithExpiry(const std::string& key, const std::string& value,
   data_[key] = ValueWithExpiry(value, expiryTime);
 }
 
-std::optional<std::string> Storage::get(const std::string& key) {
+std::optional<std::string> Storage::get(const std::string &key) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   const auto it = data_.find(key);
@@ -34,7 +34,7 @@ std::optional<std::string> Storage::get(const std::string& key) {
   return it->second.value;
 }
 
-void Storage::removeExpiredKey(const std::string& key) {
+void Storage::removeExpiredKey(const std::string &key) {
   if (const auto it = data_.find(key);
       it != data_.end() && it->second.hasExpiry) {
     if (const auto now = std::chrono::steady_clock::now();
@@ -62,4 +62,4 @@ std::vector<std::string> Storage::getAllKeys() {
   return keys;
 }
 
-}  // namespace redis
+} // namespace redis

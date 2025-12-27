@@ -1,18 +1,18 @@
 #include "redis/RDBParser.h"
 
+#include "redis/Storage.h"
+
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 
-#include "redis/Storage.h"
-
 namespace redis {
 
-bool RDBParser::parseFile(const std::string& filepath, Storage& storage) {
+bool RDBParser::parseFile(const std::string &filepath, Storage &storage) {
   if (!std::filesystem::exists(filepath)) {
     std::cout << "RDB file not found: " << filepath << std::endl;
-    return true;  // Not an error - database starts empty
+    return true; // Not an error - database starts empty
   }
 
   file_.open(filepath, std::ios::binary);
@@ -49,11 +49,11 @@ bool RDBParser::skipMetadata() {
 
     if (type == 0xFA) {
       // Metadata subsection
-      readString();  // metadata name
-      readString();  // metadata value
+      readString(); // metadata name
+      readString(); // metadata value
     } else if (type == 0xFE || type == 0xFF) {
       // Database subsection starts or End of a file
-      file_.seekg(-1, std::ios::cur);  // Go back one byte
+      file_.seekg(-1, std::ios::cur); // Go back one byte
       return true;
     } else {
       // Unknown type in the metadata section
@@ -66,13 +66,13 @@ bool RDBParser::skipMetadata() {
   return true;
 }
 
-bool RDBParser::readDatabase(Storage& storage) {
+bool RDBParser::readDatabase(Storage &storage) {
   while (!isEOF()) {
     if (const uint8_t type = readByte(); type == 0xFE) {
       // Check for hash table size info
       if (const uint8_t nextByte = readByte(); nextByte == 0xFB) {
-        readLength();  // hash table size
-        readLength();  // expire hash table size
+        readLength(); // hash table size
+        readLength(); // expire hash table size
       } else {
         file_.seekg(-1, std::ios::cur);
       }
@@ -92,14 +92,14 @@ bool RDBParser::readDatabase(Storage& storage) {
 
         if (marker == 0xFD) {
           // Expire in seconds
-          expiryTime = readUInt32LE() * 1000;  // Convert to milliseconds
+          expiryTime = readUInt32LE() * 1000; // Convert to milliseconds
           hasExpiry = true;
-          marker = readByte();  // Read value type
+          marker = readByte(); // Read value type
         } else if (marker == 0xFC) {
           // Expire in milliseconds
           expiryTime = readUInt64LE();
           hasExpiry = true;
-          marker = readByte();  // Read value type
+          marker = readByte(); // Read value type
         }
 
         // For now, we only support string values (type 0)
@@ -131,7 +131,7 @@ bool RDBParser::readDatabase(Storage& storage) {
       }
     } else if (type == 0xFF) {
       // End of file marker
-      skipBytes(8);  // Skip checksum
+      skipBytes(8); // Skip checksum
       return true;
     } else {
       std::cerr << "Unexpected byte in database section: "
@@ -145,20 +145,20 @@ bool RDBParser::readDatabase(Storage& storage) {
 
 uint8_t RDBParser::readByte() {
   uint8_t byte;
-  file_.read(reinterpret_cast<char*>(&byte), 1);
+  file_.read(reinterpret_cast<char *>(&byte), 1);
   return byte;
 }
 
 uint32_t RDBParser::readUInt32LE() {
   uint32_t value;
-  file_.read(reinterpret_cast<char*>(&value), 4);
-  return value;  // Assuming little-endian system
+  file_.read(reinterpret_cast<char *>(&value), 4);
+  return value; // Assuming little-endian system
 }
 
 uint64_t RDBParser::readUInt64LE() {
   uint64_t value;
-  file_.read(reinterpret_cast<char*>(&value), 8);
-  return value;  // Assuming little-endian system
+  file_.read(reinterpret_cast<char *>(&value), 8);
+  return value; // Assuming little-endian system
 }
 
 uint64_t RDBParser::readLength() {
@@ -188,12 +188,12 @@ uint64_t RDBParser::readLength() {
     } else if (format == 1) {
       // 16-bit integer
       uint16_t value;
-      file_.read(reinterpret_cast<char*>(&value), 2);
+      file_.read(reinterpret_cast<char *>(&value), 2);
       return value;
     } else if (format == 2) {
       // 32-bit integer
       uint32_t value;
-      file_.read(reinterpret_cast<char*>(&value), 4);
+      file_.read(reinterpret_cast<char *>(&value), 4);
       return value;
     }
   }
@@ -203,11 +203,11 @@ uint64_t RDBParser::readLength() {
 
 std::string RDBParser::readString() {
   uint8_t firstByte = readByte();
-  file_.seekg(-1, std::ios::cur);  // Go back to re-read with readLength
+  file_.seekg(-1, std::ios::cur); // Go back to re-read with readLength
 
   if ((firstByte & 0xC0) == 0xC0) {
     // Special encoding
-    readByte();  // Skip the encoding byte
+    readByte(); // Skip the encoding byte
     uint8_t format = firstByte & 0x3F;
 
     if (format == 0) {
@@ -217,12 +217,12 @@ std::string RDBParser::readString() {
     } else if (format == 1) {
       // 16-bit integer
       uint16_t value;
-      file_.read(reinterpret_cast<char*>(&value), 2);
+      file_.read(reinterpret_cast<char *>(&value), 2);
       return std::to_string(value);
     } else if (format == 2) {
       // 32-bit integer
       uint32_t value;
-      file_.read(reinterpret_cast<char*>(&value), 4);
+      file_.read(reinterpret_cast<char *>(&value), 4);
       return std::to_string(value);
     }
   }
@@ -241,4 +241,4 @@ bool RDBParser::skipBytes(size_t count) {
 
 bool RDBParser::isEOF() { return file_.eof() || file_.peek() == EOF; }
 
-}  // namespace redis
+} // namespace redis

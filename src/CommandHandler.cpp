@@ -1,20 +1,20 @@
 #include "redis/CommandHandler.h"
 
-#include <algorithm>
-#include <cctype>
-
 #include "redis/Config.h"
 #include "redis/RESPParser.h"
 #include "redis/Storage.h"
 
+#include <algorithm>
+#include <cctype>
+
 namespace redis {
 
-CommandHandler::CommandHandler(const std::shared_ptr<Config>& config,
-                               const std::shared_ptr<Storage>& storage)
+CommandHandler::CommandHandler(const std::shared_ptr<Config> &config,
+                               const std::shared_ptr<Storage> &storage)
     : config_(config), storage_(storage) {}
 
-std::string CommandHandler::handleCommand(
-    const std::vector<std::string>& command) const {
+std::string
+CommandHandler::handleCommand(const std::vector<std::string> &command) const {
   if (command.empty()) {
     return RESPParser::encodeError("ERR empty command");
   }
@@ -57,7 +57,7 @@ std::string CommandHandler::handlePing() {
   return RESPParser::encodeSimpleString("PONG");
 }
 
-std::string CommandHandler::handleEcho(const std::vector<std::string>& args) {
+std::string CommandHandler::handleEcho(const std::vector<std::string> &args) {
   if (args.empty()) {
     return RESPParser::encodeError(
         "ERR wrong number of arguments for 'echo' command");
@@ -65,15 +65,15 @@ std::string CommandHandler::handleEcho(const std::vector<std::string>& args) {
   return RESPParser::encodeBulkString(args[0]);
 }
 
-std::string CommandHandler::handleSet(
-    const std::vector<std::string>& args) const {
+std::string
+CommandHandler::handleSet(const std::vector<std::string> &args) const {
   if (args.size() < 2) {
     return RESPParser::encodeError(
         "ERR wrong number of arguments for 'set' command");
   }
 
-  const std::string& key = args[0];
-  const std::string& value = args[1];
+  const std::string &key = args[0];
+  const std::string &value = args[1];
 
   if (args.size() >= 4) {
     std::string option = args[2];
@@ -84,7 +84,7 @@ std::string CommandHandler::handleSet(
         const int expiryMs = std::stoi(args[3]);
         storage_->setWithExpiry(key, value, expiryMs);
         return RESPParser::encodeSimpleString("OK");
-      } catch ([[maybe_unused]] const std::exception& e) {
+      } catch ([[maybe_unused]] const std::exception &e) {
         return RESPParser::encodeError(
             "ERR invalid expire time in 'set' command");
       }
@@ -95,8 +95,8 @@ std::string CommandHandler::handleSet(
   return RESPParser::encodeSimpleString("OK");
 }
 
-std::string CommandHandler::handleGet(
-    const std::vector<std::string>& args) const {
+std::string
+CommandHandler::handleGet(const std::vector<std::string> &args) const {
   if (args.empty()) {
     return RESPParser::encodeError(
         "ERR wrong number of arguments for 'get' command");
@@ -109,8 +109,8 @@ std::string CommandHandler::handleGet(
   }
 }
 
-std::string CommandHandler::handleConfig(
-    const std::vector<std::string>& args) const {
+std::string
+CommandHandler::handleConfig(const std::vector<std::string> &args) const {
   if (args.size() < 2) {
     return RESPParser::encodeError(
         "ERR wrong number of arguments for 'config' command");
@@ -138,8 +138,8 @@ std::string CommandHandler::handleConfig(
   }
 }
 
-std::string CommandHandler::handleKeys(
-    const std::vector<std::string>& args) const {
+std::string
+CommandHandler::handleKeys(const std::vector<std::string> &args) const {
   if (args.empty()) {
     return RESPParser::encodeError(
         "ERR wrong number of arguments for 'keys' command");
@@ -154,8 +154,8 @@ std::string CommandHandler::handleKeys(
   return RESPParser::encodeArray(keys);
 }
 
-std::string CommandHandler::handleInfo(
-    const std::vector<std::string>& args) const {
+std::string
+CommandHandler::handleInfo(const std::vector<std::string> &args) const {
   // Check if the command has arguments and if it's "replication"
   if (!args.empty()) {
     std::string section = args[0];
@@ -180,14 +180,14 @@ std::string CommandHandler::handleInfo(
   return RESPParser::encodeError("ERR wrong section for 'info' command");
 }
 
-std::string CommandHandler::handleReplconf(
-    const std::vector<std::string>& args) {
+std::string
+CommandHandler::handleReplconf(const std::vector<std::string> &args) {
   // For this challenge, we ignore the arguments
   // and just respond with +OK\r\n
   return RESPParser::encodeSimpleString("OK");
 }
 
-std::string CommandHandler::handlePsync(const std::vector<std::string>& args) {
+std::string CommandHandler::handlePsync(const std::vector<std::string> &args) {
   // PSYNC expects 2 arguments: replication_id and offset
   if (args.size() != 2) {
     return RESPParser::encodeError(
@@ -203,4 +203,4 @@ std::string CommandHandler::handlePsync(const std::vector<std::string>& args) {
   return RESPParser::encodeSimpleString(response);
 }
 
-}  // namespace redis
+} // namespace redis
