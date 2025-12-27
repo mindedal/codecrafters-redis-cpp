@@ -57,8 +57,8 @@ bool RDBParser::skipMetadata() {
       return true;
     } else {
       // Unknown type in the metadata section
-      std::cerr << "Unexpected byte in metadata section: " << static_cast<int>(type)
-                << std::endl;
+      std::cerr << "Unexpected byte in metadata section: "
+                << static_cast<int>(type) << std::endl;
       return false;
     }
   }
@@ -104,7 +104,8 @@ bool RDBParser::readDatabase(Storage& storage) {
 
         // For now, we only support string values (type 0)
         if (marker != 0x00) {
-          std::cerr << "Unsupported value type: " << static_cast<int>(marker) << std::endl;
+          std::cerr << "Unsupported value type: " << static_cast<int>(marker)
+                    << std::endl;
           return false;
         }
 
@@ -114,9 +115,10 @@ bool RDBParser::readDatabase(Storage& storage) {
         if (hasExpiry) {
           // Convert Unix timestamp to duration from now
           auto now = std::chrono::system_clock::now();
-          const auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-                           now.time_since_epoch())
-                           .count();
+          const auto nowMs =
+              std::chrono::duration_cast<std::chrono::milliseconds>(
+                  now.time_since_epoch())
+                  .count();
 
           if (expiryTime > static_cast<uint64_t>(nowMs)) {
             const int64_t durationMs = expiryTime - nowMs;
@@ -132,8 +134,8 @@ bool RDBParser::readDatabase(Storage& storage) {
       skipBytes(8);  // Skip checksum
       return true;
     } else {
-      std::cerr << "Unexpected byte in database section: " << static_cast<int>(type)
-                << std::endl;
+      std::cerr << "Unexpected byte in database section: "
+                << static_cast<int>(type) << std::endl;
       return false;
     }
   }

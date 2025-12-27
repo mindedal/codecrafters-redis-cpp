@@ -5,7 +5,11 @@
 #include <set>
 
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #else
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -34,7 +38,7 @@ class RDBParser;
 
 class RedisServer {
  public:
- explicit RedisServer(const std::shared_ptr<Config>& config);
+  explicit RedisServer(const std::shared_ptr<Config>& config);
   ~RedisServer();
 
   void run();

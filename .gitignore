@@ -46,6 +46,8 @@ CTestTestfile.cmake
 _deps
 
 build/
-vcpkg_installed
+vcpkg_installed.cache
 
-.cache
+# IDEs and editors
+.vs/
+.idea/

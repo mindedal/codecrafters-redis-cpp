@@ -14,8 +14,7 @@ CommandHandler::CommandHandler(const std::shared_ptr<Config>& config,
     : config_(config), storage_(storage) {}
 
 std::string CommandHandler::handleCommand(
-    const std::vector<std::string>& command) const
-{
+    const std::vector<std::string>& command) const {
   if (command.empty()) {
     return RESPParser::encodeError("ERR empty command");
   }
@@ -66,8 +65,8 @@ std::string CommandHandler::handleEcho(const std::vector<std::string>& args) {
   return RESPParser::encodeBulkString(args[0]);
 }
 
-std::string CommandHandler::handleSet(const std::vector<std::string>& args) const
-{
+std::string CommandHandler::handleSet(
+    const std::vector<std::string>& args) const {
   if (args.size() < 2) {
     return RESPParser::encodeError(
         "ERR wrong number of arguments for 'set' command");
@@ -96,8 +95,8 @@ std::string CommandHandler::handleSet(const std::vector<std::string>& args) cons
   return RESPParser::encodeSimpleString("OK");
 }
 
-std::string CommandHandler::handleGet(const std::vector<std::string>& args) const
-{
+std::string CommandHandler::handleGet(
+    const std::vector<std::string>& args) const {
   if (args.empty()) {
     return RESPParser::encodeError(
         "ERR wrong number of arguments for 'get' command");
@@ -110,8 +109,8 @@ std::string CommandHandler::handleGet(const std::vector<std::string>& args) cons
   }
 }
 
-std::string CommandHandler::handleConfig(const std::vector<std::string>& args) const
-{
+std::string CommandHandler::handleConfig(
+    const std::vector<std::string>& args) const {
   if (args.size() < 2) {
     return RESPParser::encodeError(
         "ERR wrong number of arguments for 'config' command");
@@ -139,8 +138,8 @@ std::string CommandHandler::handleConfig(const std::vector<std::string>& args) c
   }
 }
 
-std::string CommandHandler::handleKeys(const std::vector<std::string>& args) const
-{
+std::string CommandHandler::handleKeys(
+    const std::vector<std::string>& args) const {
   if (args.empty()) {
     return RESPParser::encodeError(
         "ERR wrong number of arguments for 'keys' command");
@@ -155,8 +154,8 @@ std::string CommandHandler::handleKeys(const std::vector<std::string>& args) con
   return RESPParser::encodeArray(keys);
 }
 
-std::string CommandHandler::handleInfo(const std::vector<std::string>& args) const
-{
+std::string CommandHandler::handleInfo(
+    const std::vector<std::string>& args) const {
   // Check if the command has arguments and if it's "replication"
   if (!args.empty()) {
     std::string section = args[0];

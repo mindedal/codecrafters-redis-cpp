@@ -10,7 +10,6 @@ class RESPParser {
  public:
   static std::vector<std::string> parseArray(const std::string& data);
   static std::string parseSimpleString(const std::string& data);
-
   static std::string encodeSimpleString(const std::string& str);
   static std::string encodeBulkString(const std::string& str);
   static std::string encodeArray(const std::vector<std::string>& items);

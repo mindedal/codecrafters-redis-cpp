@@ -24,7 +24,8 @@ std::optional<std::string> Storage::get(const std::string& key) {
   }
 
   if (it->second.hasExpiry) {
-    if (const auto now = std::chrono::steady_clock::now(); now >= it->second.expiryTime) {
+    if (const auto now = std::chrono::steady_clock::now();
+        now >= it->second.expiryTime) {
       data_.erase(it);
       return std::nullopt;
     }
@@ -34,8 +35,10 @@ std::optional<std::string> Storage::get(const std::string& key) {
 }
 
 void Storage::removeExpiredKey(const std::string& key) {
-  if (const auto it = data_.find(key); it != data_.end() && it->second.hasExpiry) {
-    if (const auto now = std::chrono::steady_clock::now(); now >= it->second.expiryTime) {
+  if (const auto it = data_.find(key);
+      it != data_.end() && it->second.hasExpiry) {
+    if (const auto now = std::chrono::steady_clock::now();
+        now >= it->second.expiryTime) {
       data_.erase(it);
     }
   }

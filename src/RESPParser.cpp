@@ -27,7 +27,11 @@ std::vector<std::string> RESPParser::parseArray(const std::string& data) {
       line.pop_back();
     }
 
-    const int length = std::stoi(line.substr(1));
+    const auto lengthParsed = std::stoll(line.substr(1));
+    if (lengthParsed < 0) {
+      break;
+    }
+    const auto length = static_cast<std::size_t>(lengthParsed);
 
     if (!std::getline(iss, line)) break;
 
@@ -35,7 +39,7 @@ std::vector<std::string> RESPParser::parseArray(const std::string& data) {
       line.pop_back();
     }
 
-    if (line.length() != static_cast<size_t>(length)) {
+    if (line.size() != length) {
       line = line.substr(0, length);
     }
 
@@ -50,7 +54,7 @@ std::string RESPParser::parseSimpleString(const std::string& data) {
     return "";
   }
 
-  const size_t end = data.find("\r\n");
+  const std::size_t end = data.find("\r\n");
   if (end == std::string::npos) {
     return "";
   }
@@ -63,7 +67,7 @@ std::string RESPParser::encodeSimpleString(const std::string& str) {
 }
 
 std::string RESPParser::encodeBulkString(const std::string& str) {
-  return "$" + std::to_string(str.length()) + "\r\n" + str + "\r\n";
+  return "$" + std::to_string(str.size()) + "\r\n" + str + "\r\n";
 }
 
 std::string RESPParser::encodeArray(const std::vector<std::string>& items) {

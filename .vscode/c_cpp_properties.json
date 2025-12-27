@@ -1,10 +1,10 @@
 {
   "configurations": [
     {
-      "name": "Linux",
+      "name": "Windows (MSYS2 UCRT64)",
       "includePath": ["${workspaceFolder}/**", "${workspaceFolder}/include"],
       "defines": [],
-      "compilerPath": "/usr/bin/g++",
+      "compilerPath": "C:\\msys64\\ucrt64\\bin\\g++.exe",
       "cStandard": "c17",
       "cppStandard": "c++23",
       "intelliSenseMode": "gcc-x64",

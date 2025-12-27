@@ -15,7 +15,8 @@ struct ValueWithExpiry {
   bool hasExpiry;
 
   ValueWithExpiry() : hasExpiry(false) {}
-  explicit ValueWithExpiry(const std::string& val) : value(val), hasExpiry(false) {}
+  explicit ValueWithExpiry(const std::string& val)
+      : value(val), hasExpiry(false) {}
   ValueWithExpiry(const std::string& val,
                   std::chrono::steady_clock::time_point expiry)
       : value(val), expiryTime(expiry), hasExpiry(true) {}
